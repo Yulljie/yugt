@@ -8,6 +8,19 @@ static void screen_changed(GtkWidget *widget, GdkScreen *old, gpointer data) {
     gtk_widget_set_visual(widget, visual);
 }
 
+static gboolean on_vte_draw_after(GtkWidget *widget, cairo_t *cr, gpointer data) {
+    GtkWidget *toplevel = gtk_widget_get_toplevel(widget);
+    GtkStyleContext *ctx = gtk_widget_get_style_context(toplevel);
+    int w = gtk_widget_get_allocated_width(widget);
+    int h = gtk_widget_get_allocated_height(widget);
+
+    cairo_save(cr);
+    cairo_set_operator(cr, CAIRO_OPERATOR_DEST_OVER);
+    gtk_render_background(ctx, cr, 0, 0, w, h);
+    cairo_restore(cr);
+    return FALSE;
+}
+
 static void activate(GtkApplication *app, gpointer user_data) {
     GtkWidget *window = gtk_application_window_new(app);
 
@@ -15,7 +28,6 @@ static void activate(GtkApplication *app, gpointer user_data) {
     gtk_window_set_default_size(GTK_WINDOW(window), 900, 600);
 
     VteTerminal *terminal = VTE_TERMINAL(vte_terminal_new());
-    GtkWidget *overlay = gtk_overlay_new();
 
     const char *shell = g_getenv("SHELL");
     if (!shell || !*shell) shell = "/bin/sh";
@@ -25,16 +37,16 @@ static void activate(GtkApplication *app, gpointer user_data) {
         NULL, argv, NULL, G_SPAWN_DEFAULT,
         NULL, NULL, NULL, -1, NULL, NULL, NULL);
 
-//    gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(terminal));
-    gtk_container_add(GTK_CONTAINER(window), overlay);
-    gtk_overlay_add_overlay(GTK_OVERLAY(overlay), GTK_WIDGET(terminal));
+    gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(terminal));
 
     GdkRGBA transparent = { 0, 0, 0, 0 };
     vte_terminal_set_color_background(terminal, &transparent);
 
-//    gtk_widget_set_app_paintable(window, TRUE);
     g_signal_connect(window, "screen-changed", G_CALLBACK(screen_changed), NULL);
     screen_changed(window, NULL, NULL);
+
+    g_signal_connect_after(GTK_WIDGET(terminal), "draw", 
+    G_CALLBACK(on_vte_draw_after), NULL);
 
     gtk_widget_show_all(window);
 }
